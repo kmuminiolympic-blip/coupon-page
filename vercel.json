@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/coupon-admin.html" },
+    { "source": "/admin", "destination": "/coupon-admin.html" },
+    { "source": "/use", "destination": "/coupon-use.html" }
+  ]
+}

@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쿠폰 발급 관리 시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a26;
+    --surface3: #22223a;
+    --border: rgba(120,120,200,0.12);
+    --border2: rgba(120,120,200,0.22);
+    --accent: #7c6af0;
+    --accent2: #a78bfa;
+    --gold: #f5c842;
+    --teal: #2dd4bf;
+    --coral: #f87171;
+    --text: #e8e8f0;
+    --text2: #9898b8;
+    --text3: #6060a0;
+    --radius: 12px;
+    --radius2: 8px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent2);
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-info { font-size: 12px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+  .db-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .db-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text3);
+    transition: background 0.3s;
+  }
+  .db-dot.ok { background: var(--teal); }
+  .db-dot.err { background: var(--coral); }
+
+  .main { max-width: 1400px; margin: 0 auto; padding: 32px; }
+
+  .section-title {
+    font-size: 13px; font-weight: 600; letter-spacing: 1.5px;
+    color: var(--text3); text-transform: uppercase; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::before { content:''; display:block; width:3px; height:14px; background: var(--accent); border-radius: 2px; }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .stat-card:hover { border-color: var(--border2); }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .stat-card.total::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .stat-card.v1::before { background: #f59e0b; }
+  .stat-card.v2::before { background: #10b981; }
+  .stat-card.v3::before { background: #3b82f6; }
+  .stat-card.v4::before { background: #f43f5e; }
+  .stat-card.v5::before { background: #8b5cf6; }
+  .stat-card.used::before { background: var(--teal); }
+  .stat-card.unused::before { background: var(--coral); }
+  .stat-card.rate::before { background: var(--gold); }
+
+  .stat-card.span2 { grid-column: span 2; }
+  .stat-card.span1 { grid-column: span 1; }
+
+  .stat-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; font-weight: 500; letter-spacing: 0.5px; }
+  .stat-num { font-size: 28px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .stat-badge {
+    display: inline-block; font-size: 10px; padding: 2px 8px;
+    border-radius: 20px; font-weight: 600; margin-top: 6px;
+  }
+  .badge-amber { background: rgba(245,200,66,0.15); color: var(--gold); }
+  .badge-teal  { background: rgba(45,212,191,0.15); color: var(--teal); }
+  .badge-coral { background: rgba(248,113,113,0.15); color: var(--coral); }
+
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-bottom: 16px;
+    width: fit-content;
+  }
+  .tab {
+    padding: 8px 18px; border-radius: var(--radius2);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    color: var(--text2); border: none; background: none;
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--surface3); color: var(--text); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .table-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-title { font-weight: 600; font-size: 14px; }
+  .table-count { font-size: 12px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; padding: 11px 16px;
+    font-size: 11px; font-weight: 600; color: var(--text3);
+    letter-spacing: 0.8px; text-transform: uppercase;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-size: 13px; color: var(--text2);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(124,106,240,0.04); }
+
+  .coupon-title-cell { font-weight: 600; color: var(--text); font-size: 13px; }
+  .coupon-vendor-cell { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .status-unused { background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+  .status-used   { background: rgba(45,212,191,0.12); color: #2dd4bf; border: 1px solid rgba(45,212,191,0.2); }
+  .status-expired{ background: rgba(96,96,160,0.12); color: #6060a0; border: 1px solid rgba(96,96,160,0.2); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot-unused { background: #f87171; }
+  .dot-used   { background: #2dd4bf; }
+  .dot-expired{ background: #6060a0; }
+
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text3); }
+
+  .btn-del {
+    background: none; border: 1px solid rgba(248,113,113,0.2);
+    color: #f87171; border-radius: var(--radius2);
+    padding: 5px 12px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s; font-family: 'Noto Sans KR', sans-serif;
+  }
+  .btn-del:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.4); }
+
+  .btn-link {
+    background: none; border: 1px solid var(--border2);
+    color: var(--accent2); border-radius: var(--radius2);
+    padding: 5px 10px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s; font-family: 'Noto Sans KR', sans-serif;
+    margin-right: 4px;
+  }
+  .btn-link:hover { background: rgba(167,139,250,0.1); }
+
+  .issue-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 32px;
+  }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label {
+    font-size: 11px; font-weight: 600; color: var(--text3);
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+  .form-input, .form-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius2);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    transition: border-color 0.15s;
+    outline: none;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); }
+  .form-select option { background: #1a1a26; }
+
+  .btn-issue {
+    background: linear-gradient(135deg, var(--accent), #9f7aea);
+    color: white; border: none;
+    border-radius: var(--radius2);
+    padding: 12px 32px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .btn-issue:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-issue:active { transform: translateY(0); }
+  .btn-issue:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 32px;
+    width: 480px; max-width: 95vw;
+    position: relative;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: none; border: none; color: var(--text3);
+    font-size: 20px; cursor: pointer; padding: 4px;
+  }
+  .modal-close:hover { color: var(--text); }
+
+  .qr-wrap {
+    background: white; border-radius: var(--radius);
+    padding: 16px; text-align: center; margin: 16px 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .url-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius2);
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--accent2);
+    word-break: break-all;
+    margin-bottom: 16px;
+  }
+
+  .btn-copy {
+    background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--text); border-radius: var(--radius2);
+    padding: 10px 20px; cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-copy:hover { border-color: var(--accent); color: var(--accent2); }
+
+  .modal-row { display: flex; gap: 10px; }
+
+  .v-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .v1 { background: #f59e0b; }
+  .v2 { background: #10b981; }
+  .v3 { background: #3b82f6; }
+  .v4 { background: #f43f5e; }
+  .v5 { background: #8b5cf6; }
+
+  .empty-row td { text-align: center; color: var(--text3); padding: 40px; }
+
+  .toast {
+    position: fixed; bottom: 32px; right: 32px;
+    background: var(--surface3); border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 20px; font-size: 13px;
+    z-index: 9999; color: var(--text);
+    transform: translateY(20px); opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  .coupon-count-info {
+    font-size: 11px; color: var(--text3);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius2);
+    padding: 8px 12px;
+    margin-top: 8px;
+  }
+  .coupon-count-info strong { color: var(--accent2); }
+
+  /* Loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+    height: 14px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">🎫</div>
+    쿠폰 관리 시스템
+  </div>
+  <div class="header-right">
+    <div class="db-status">
+      <div class="db-dot" id="dbDot"></div>
+      <span id="dbLabel">연결 중...</span>
+    </div>
+    <div class="header-info" id="headerDate"></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="section-title">발급 현황 대시보드</div>
+  <div class="dashboard-grid">
+    <div class="stat-card total span2">
+      <div class="stat-label">전체 발급</div>
+      <div class="stat-num" id="statTotal">-</div>
+      <div class="stat-sub">누적 발행 쿠폰</div>
+    </div>
+    <div class="stat-card v1">
+      <div class="stat-label"><span class="v-dot v1"></span>풍동</div>
+      <div class="stat-num" id="stat0">-</div>
+    </div>
+    <div class="stat-card v2">
+      <div class="stat-label"><span class="v-dot v2"></span>닭동가리</div>
+      <div class="stat-num" id="stat1">-</div>
+    </div>
+    <div class="stat-card v3">
+      <div class="stat-label"><span class="v-dot v3"></span>해방피플클럽</div>
+      <div class="stat-num" id="stat2">-</div>
+    </div>
+    <div class="stat-card v4">
+      <div class="stat-label"><span class="v-dot v4"></span>수기소금</div>
+      <div class="stat-num" id="stat3">-</div>
+    </div>
+    <div class="stat-card v5">
+      <div class="stat-label"><span class="v-dot v5"></span>눈을 담다</div>
+      <div class="stat-num" id="stat4">-</div>
+    </div>
+    <div class="stat-card used span1">
+      <div class="stat-label">사용 완료</div>
+      <div class="stat-num" id="statUsed">-</div>
+      <span class="stat-badge badge-teal">USED</span>
+    </div>
+    <div class="stat-card unused span1">
+      <div class="stat-label">미사용</div>
+      <div class="stat-num" id="statUnused">-</div>
+      <span class="stat-badge badge-coral">UNUSED</span>
+    </div>
+    <div class="stat-card rate span1">
+      <div class="stat-label">사용률</div>
+      <div class="stat-num" id="statRate">-%</div>
+      <span class="stat-badge badge-amber">RATE</span>
+    </div>
+  </div>
+
+  <div class="section-title">쿠폰 발급 내역</div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('all', this)">전체</button>
+    <button class="tab" onclick="switchTab('풍동', this)"><span class="v-dot v1"></span> 풍동</button>
+    <button class="tab" onclick="switchTab('닭동가리', this)"><span class="v-dot v2"></span> 닭동가리</button>
+    <button class="tab" onclick="switchTab('해방피플클럽', this)"><span class="v-dot v3"></span> 해방피플클럽</button>
+    <button class="tab" onclick="switchTab('수기소금', this)"><span class="v-dot v4"></span> 수기소금</button>
+    <button class="tab" onclick="switchTab('눈을 담다', this)"><span class="v-dot v5"></span> 눈을 담다</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <span class="table-title" id="tableTitle">전체 쿠폰 내역</span>
+      <span class="table-count" id="tableCount">-</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>제목</th>
+          <th>종류</th>
+          <th>상태</th>
+          <th>발급일</th>
+          <th>사용일</th>
+          <th>만료일</th>
+          <th>링크 / QR</th>
+          <th>삭제</th>
+        </tr>
+      </thead>
+      <tbody id="couponTableBody">
+        <tr class="empty-row"><td colspan="8">데이터를 불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title">쿠폰 발행</div>
+  <div class="issue-section">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">업체 선택</label>
+        <select class="form-select" id="vendorSelect" onchange="onVendorChange()">
+          <option value="">-- 업체 선택 --</option>
+          <option value="풍동">풍동</option>
+          <option value="닭동가리">닭동가리</option>
+          <option value="해방피플클럽">해방피플클럽</option>
+          <option value="수기소금">수기소금</option>
+          <option value="눈을 담다">눈을 담다</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">쿠폰 종류</label>
+        <select class="form-select" id="couponTypeSelect" onchange="onTypeChange()">
+          <option value="">-- 종류 선택 --</option>
+        </select>
+        <div class="coupon-count-info" id="countInfo" style="display:none"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">쿠폰 제목 (자동입력)</label>
+        <input class="form-input" type="text" id="couponTitle" placeholder="제목이 자동 생성됩니다">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">유효기간 시작</label>
+        <input class="form-input" type="date" id="startDate">
+      </div>
+      <div class="form-group">
+        <label class="form-label">유효기간 종료</label>
+        <input class="form-input" type="date" id="endDate">
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <label class="form-label" style="opacity:0">발행</label>
+        <button class="btn-issue" id="issueBtn" onclick="issueCoupon()">
+          <span>🎫</span> 쿠폰 발행하기
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="qrModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title" id="modalTitle">쿠폰 발행 완료</div>
+    <div class="url-box" id="modalUrl"></div>
+    <div class="qr-wrap" id="qrContainer"></div>
+    <div class="modal-row">
+      <button class="btn-copy" onclick="copyUrl()" style="flex:1; justify-content:center;">
+        📋 URL 복사
+      </button>
+      <button class="btn-copy" onclick="openCouponPage()" style="flex:1; justify-content:center;">
+        🔗 쿠폰 열기
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =============================================
+// SUPABASE CONFIG
+// =============================================
+const SUPABASE_URL = 'https://scanpvkimaicpergakbe.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_CGS5dAKGRMOJwee2AsLtag_Q4zFLOVy';
+const TABLE = 'coupons';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': options.prefer || '',
+      ...options.headers
+    },
+    ...options
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || res.statusText);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// GET coupons (exclude deleted)
+async function dbGetCoupons() {
+  return sbFetch(`${TABLE}?status=neq.deleted&order=created_at.desc`);
+}
+
+// INSERT coupon
+async function dbInsertCoupon(coupon) {
+  return sbFetch(TABLE, {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: JSON.stringify(coupon)
+  });
+}
+
+// UPDATE status → deleted
+async function dbDeleteCoupon(id) {
+  return sbFetch(`${TABLE}?id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'deleted' })
+  });
+}
+
+// =============================================
+// VENDOR DATA
+// =============================================
+const VENDORS = {
+  '풍동': {
+    color: '#f59e0b',
+    types: [{ name: '천원할인', limit: null }]
+  },
+  '닭동가리': {
+    color: '#10b981',
+    types: [{ name: '음료증정', limit: null }]
+  },
+  '해방피플클럽': {
+    color: '#3b82f6',
+    types: [
+      { name: '5만원 할인', limit: 1 },
+      { name: '3만원 할인', limit: 2 },
+      { name: '1만원 할인', limit: 3 }
+    ]
+  },
+  '수기소금': {
+    color: '#f43f5e',
+    types: [
+      { name: '크림치즈 크래커 1개', limit: 6 },
+      { name: '팥빙수 1개', limit: 6 },
+      { name: '감자튀김', limit: 8 }
+    ]
+  },
+  '눈을 담다': {
+    color: '#8b5cf6',
+    types: [{ name: '아메리카노 1000원 할인 / 요거트아이스크림 3000원 할인 택1', limit: null }]
+  }
+};
+
+const VENDOR_LIST = ['풍동', '닭동가리', '해방피플클럽', '수기소금', '눈을 담다'];
+
+let coupons = [];
+let currentTab = 'all';
+let currentUrl = '';
+
+// =============================================
+// INIT
+// =============================================
+window.onload = async function() {
+  const now = new Date();
+  document.getElementById('headerDate').textContent = now.toLocaleString('ko-KR');
+
+  const today = now.toISOString().split('T')[0];
+  document.getElementById('startDate').value = today;
+  const exp = new Date(now); exp.setDate(exp.getDate() + 30);
+  document.getElementById('endDate').value = exp.toISOString().split('T')[0];
+
+  await loadCoupons();
+
+  // 30초마다 자동 새로고침
+  setInterval(async () => {
+    document.getElementById('headerDate').textContent = new Date().toLocaleString('ko-KR');
+    await loadCoupons();
+  }, 30000);
+};
+
+async function loadCoupons() {
+  try {
+    const data = await dbGetCoupons();
+    coupons = data || [];
+    setDbStatus(true);
+    renderAll();
+  } catch (e) {
+    setDbStatus(false);
+    showToast('❌ DB 연결 실패: ' + e.message);
+  }
+}
+
+function setDbStatus(ok) {
+  const dot = document.getElementById('dbDot');
+  const label = document.getElementById('dbLabel');
+  dot.className = 'db-dot ' + (ok ? 'ok' : 'err');
+  label.textContent = ok ? 'Supabase 연결됨' : '연결 오류';
+}
+
+// =============================================
+// VENDOR SELECT
+// =============================================
+function onVendorChange() {
+  const vendor = document.getElementById('vendorSelect').value;
+  const typeSelect = document.getElementById('couponTypeSelect');
+  typeSelect.innerHTML = '<option value="">-- 종류 선택 --</option>';
+  document.getElementById('countInfo').style.display = 'none';
+  document.getElementById('couponTitle').value = '';
+
+  if (!vendor) return;
+  VENDORS[vendor].types.forEach((t, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = t.name;
+    typeSelect.appendChild(opt);
+  });
+}
+
+function onTypeChange() {
+  const vendor = document.getElementById('vendorSelect').value;
+  const typeIdx = document.getElementById('couponTypeSelect').value;
+  const countInfo = document.getElementById('countInfo');
+
+  if (!vendor || typeIdx === '') { countInfo.style.display = 'none'; return; }
+
+  const typeData = VENDORS[vendor].types[typeIdx];
+  const existing = coupons.filter(c => c.vendor === vendor && c.coupon_type === typeData.name && c.status !== 'deleted').length;
+  const limit = typeData.limit;
+
+  countInfo.style.display = 'block';
+  if (limit !== null) {
+    const remaining = limit - existing;
+    countInfo.innerHTML = remaining > 0
+      ? `발급 가능: <strong>${remaining}매</strong> / 한도: ${limit}매 (발급됨: ${existing}매)`
+      : `<span style="color:#f87171">⚠ 발급 한도(${limit}매)에 도달했습니다.</span>`;
+  } else {
+    countInfo.innerHTML = `발급 한도: <strong>제한 없음</strong> (발급됨: ${existing}매)`;
+  }
+
+  const vendorCoupons = coupons.filter(c => c.vendor === vendor && c.coupon_type === typeData.name).length;
+  document.getElementById('couponTitle').value = `${vendor} ${typeData.name} #${vendorCoupons + 1}`;
+}
+
+// =============================================
+// ISSUE COUPON
+// =============================================
+function generateToken() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < 64; i++) token += chars[Math.floor(Math.random() * chars.length)];
+  return token;
+}
+
+async function issueCoupon() {
+  const vendor = document.getElementById('vendorSelect').value;
+  const typeIdx = document.getElementById('couponTypeSelect').value;
+  const title = document.getElementById('couponTitle').value.trim();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+
+  if (!vendor) { showToast('업체를 선택해주세요'); return; }
+  if (typeIdx === '') { showToast('쿠폰 종류를 선택해주세요'); return; }
+  if (!title) { showToast('쿠폰 제목을 입력해주세요'); return; }
+  if (!endDate) { showToast('만료일을 설정해주세요'); return; }
+
+  const typeData = VENDORS[vendor].types[typeIdx];
+  const existing = coupons.filter(c => c.vendor === vendor && c.coupon_type === typeData.name && c.status !== 'deleted').length;
+
+  if (typeData.limit !== null && existing >= typeData.limit) {
+    showToast(`⚠ 발급 한도(${typeData.limit}매)를 초과했습니다`); return;
+  }
+
+  const token = generateToken();
+
+  // coupon-use.html 은 같은 경로에 있다고 가정
+  const baseUrl = location.origin + '/coupon-use.html';
+  const url = `${baseUrl}?token=${token}`;
+
+  const coupon = {
+    token,
+    title,
+    vendor,
+    coupon_type: typeData.name,
+    status: 'unused',
+    issued_date: new Date().toISOString().split('T')[0],
+    used_date: null,
+    start_date: startDate || null,
+    expire_date: endDate,
+    url
+  };
+
+  const btn = document.getElementById('issueBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> 저장 중...';
+
+  try {
+    const result = await dbInsertCoupon(coupon);
+    const saved = Array.isArray(result) ? result[0] : result;
+    coupons.unshift(saved || coupon);
+    renderAll();
+    showQrModal(saved || coupon);
+    showToast('✅ 쿠폰이 발행되었습니다!');
+  } catch (e) {
+    showToast('❌ 발행 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🎫</span> 쿠폰 발행하기';
+  }
+}
+
+// =============================================
+// QR MODAL
+// =============================================
+function showQrModal(coupon) {
+  currentUrl = coupon.url;
+  document.getElementById('modalTitle').textContent = `쿠폰 발행 완료: ${coupon.title}`;
+  document.getElementById('modalUrl').textContent = coupon.url;
+  document.getElementById('qrContainer').innerHTML = '';
+
+  const qrDiv = document.createElement('div');
+  document.getElementById('qrContainer').appendChild(qrDiv);
+  new QRCode(qrDiv, {
+    text: coupon.url,
+    width: 200, height: 200,
+    colorDark: '#0a0a0f', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+
+  document.getElementById('qrModal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('qrModal').classList.remove('show'); }
+function copyUrl() { navigator.clipboard.writeText(currentUrl).then(() => showToast('URL이 복사되었습니다')); }
+function openCouponPage() { window.open(currentUrl, '_blank'); }
+
+// =============================================
+// RENDER
+// =============================================
+function renderAll() {
+  updateStats();
+  renderTable();
+}
+
+function updateStats() {
+  const active = coupons.filter(c => c.status !== 'deleted');
+  const total = active.length;
+  const used = active.filter(c => c.status === 'used').length;
+  const unused = active.filter(c => c.status === 'unused').length;
+  const rate = total > 0 ? Math.round(used / total * 100) : 0;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statUsed').textContent = used;
+  document.getElementById('statUnused').textContent = unused;
+  document.getElementById('statRate').textContent = rate + '%';
+
+  VENDOR_LIST.forEach((v, i) => {
+    document.getElementById('stat' + i).textContent = active.filter(c => c.vendor === v).length;
+  });
+}
+
+function renderTable() {
+  const filtered = currentTab === 'all'
+    ? coupons.filter(c => c.status !== 'deleted')
+    : coupons.filter(c => c.vendor === currentTab && c.status !== 'deleted');
+
+  document.getElementById('tableCount').textContent = filtered.length + ' 건';
+
+  const tbody = document.getElementById('couponTableBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">발급된 쿠폰이 없습니다</td></tr>';
+    return;
+  }
+
+  const vendorColors = { '풍동':'v1', '닭동가리':'v2', '해방피플클럽':'v3', '수기소금':'v4', '눈을 담다':'v5' };
+
+  tbody.innerHTML = filtered.map(c => {
+    const vClass = vendorColors[c.vendor] || '';
+    let statusHtml = '';
+    if (c.status === 'used') {
+      statusHtml = '<span class="status-badge status-used"><span class="dot dot-used"></span>사용완료</span>';
+    } else if (c.status === 'expired') {
+      statusHtml = '<span class="status-badge status-expired"><span class="dot dot-expired"></span>만료</span>';
+    } else {
+      statusHtml = '<span class="status-badge status-unused"><span class="dot dot-unused"></span>미사용</span>';
+    }
+    return `
+    <tr>
+      <td>
+        <div class="coupon-title-cell">${c.title}</div>
+        <div class="coupon-vendor-cell">${c.coupon_type}</div>
+      </td>
+      <td><span class="v-dot ${vClass}"></span>${c.vendor}</td>
+      <td>${statusHtml}</td>
+      <td><span class="mono">${c.issued_date || '-'}</span></td>
+      <td><span class="mono">${c.used_date || '-'}</span></td>
+      <td><span class="mono">${c.expire_date || '-'}</span></td>
+      <td>
+        <button class="btn-link" onclick='showExistingQr(${JSON.stringify(c.id)})'>QR/링크</button>
+      </td>
+      <td>
+        <button class="btn-del" onclick='deleteCoupon(${JSON.stringify(c.id)})'>삭제</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const titles = { all:'전체 쿠폰 내역', '풍동':'풍동 쿠폰', '닭동가리':'닭동가리 쿠폰', '해방피플클럽':'해방피플클럽 쿠폰', '수기소금':'수기소금 쿠폰', '눈을 담다':'눈을 담다 쿠폰' };
+  document.getElementById('tableTitle').textContent = titles[tab];
+  renderTable();
+}
+
+function showExistingQr(id) {
+  const c = coupons.find(c => c.id === id);
+  if (c) showQrModal(c);
+}
+
+async function deleteCoupon(id) {
+  if (!confirm('쿠폰을 삭제하시겠습니까?')) return;
+  try {
+    await dbDeleteCoupon(id);
+    coupons = coupons.filter(c => c.id !== id);
+    renderAll();
+    showToast('쿠폰이 삭제되었습니다');
+  } catch (e) {
+    showToast('❌ 삭제 실패: ' + e.message);
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
